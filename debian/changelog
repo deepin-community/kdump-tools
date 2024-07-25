@@ -1,3 +1,9 @@
+kdump-tools (1:1.10.3deepin1) unstable; urgency=medium
+
+  * Add support loong64 and riscv64
+
+ -- xiangzelong <xiangzelong@deepin.org>  Thu, 25 Jul 2024 17:28:17 +0800
+
 kdump-tools (1:1.10.3) unstable; urgency=medium
 
   * Mark autopkgtest as skipped for cases where crash kernel size is 0.
