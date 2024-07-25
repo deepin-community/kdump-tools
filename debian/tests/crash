@@ -1,0 +1,102 @@
+#!/bin/bash
+
+function error()
+{
+	echo "makedumpfile: ERROR: crash test: $*"
+	exit 1
+}
+
+function report()
+{
+	echo "makedumpfile: crash test: $*"
+}
+
+function skip()
+{
+	echo "makedumpfile: SKIP: crash test: $*"
+	exit 77
+}
+
+function wait_for_systemd_service()
+{
+	TIMEOUT=180
+	while
+		! systemctl is-active kdump-tools &&
+		! systemctl is-failed kdump-tools &&
+		[ $TIMEOUT -gt 0 ] ; do
+			TIMEOUT=$((TIMEOUT - 1))
+			sleep 1
+	done
+}
+
+function get_crash_kernel_size()
+{
+	if kexec --print-ckr-size > /dev/null 2> /dev/null ; then
+		kexec --print-ckr-size
+	elif [ -e /sys/kernel/kexec_crash_size ] ; then
+		cat /sys/kernel/kexec_crash_size
+	else
+		echo 0
+	fi
+}
+
+case "$AUTOPKGTEST_REBOOT_MARK" in
+  "")
+	report "rebooting to have crashkernel on cmdline"
+	/tmp/autopkgtest-reboot crashkernel
+	;;
+  crashkernel)
+	report "checking for crashkernel"
+	if ! grep crashkernel /proc/cmdline > /dev/null; then
+		error "no crashkernel option on cmdline"
+	fi
+	report "checking crash kernel size"
+	crksize=$(get_crash_kernel_size)
+	if [ "$crksize" -eq 0 ]; then
+		skip "crash kernel size is 0, possibly not enough memory"
+	fi
+	report "waiting for kdump-tools systemd service"
+	wait_for_systemd_service
+	if systemctl is-failed kdump-tools; then
+		systemctl status kdump-tools
+		error "kdump-tools systemd service failed"
+	fi
+	if ! systemctl is-active kdump-tools; then
+		systemctl status kdump-tools
+		error "kdump-tools systemd service is not active"
+	fi
+	report "checking kdump-config status"
+	if ! kdump-config status | grep ": ready to kdump" > /dev/null; then
+		error "kdump is not ready"
+	fi
+	/tmp/autopkgtest-reboot-prepare crash
+	echo 1 > /proc/sys/kernel/sysrq
+	echo c > /proc/sysrq-trigger
+	;;
+  crash)
+	report "checking for crash file"
+	found=false
+	shopt -s globstar nullglob
+	if [ -x "$(command -v makedumpfile)" ]; then
+		expected_dump_prefix="dump."
+		expected_dump_type="compressed dump"
+		expected_file_output="kdump compressed dump"
+	else
+		expected_dump_prefix="vmcore."
+		expected_dump_type="core file"
+		expected_file_output="core file"
+	fi
+	for i in /var/crash/**/"${expected_dump_prefix}"*; do
+		report "file $i: $(file "$i")"
+		if file "$i" | grep -i "$expected_file_output" > /dev/null; then
+			report "Found $expected_dump_type at $i"
+			found=true
+		else
+			error "$i is not a $expected_dump_type"
+		fi
+	done
+	if [ "$found" = "false" ]; then
+		error "Found no $expected_dump_type"
+	fi
+	;;
+esac
