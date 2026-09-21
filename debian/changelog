@@ -1,3 +1,11 @@
+kdump-tools (1:1.10.3deepin2) unstable; urgency=medium
+
+  * Remove shellcheck from Build-Depends: it is not available in the deepin
+    build environment, and the check stage is not wanted in the default build
+  * Enable the nocheck build option by default
+
+ -- lichenggang <lichenggang@uniontech.com>  Mon, 21 Sep 2026 21:00:54 +0800
+
 kdump-tools (1:1.10.3deepin1) unstable; urgency=medium
 
   * Add support loong64 and riscv64
