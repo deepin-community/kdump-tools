@@ -2,6 +2,10 @@
 
 include /usr/share/dpkg/default.mk
 
+# shellcheck is not available in the deepin build environment, so the check
+# stage is skipped. Appending keeps whatever the caller passed in.
+export DEB_BUILD_OPTIONS += nocheck
+
 ifeq ($(shell $(call dpkg_vendor_derives_from,Ubuntu)),yes)
 	SUBSTVARS = -Vdist:Depends="kexec-tools (>= 1:2.0.10-2)"
 else
@@ -65,8 +69,3 @@ override_dh_auto_clean:
 	rm -f debian/kdump-tools.maintscript
 	rm -f debian/kdump-config debian/kdump-tools.conf debian/kdump-tools.5
 	dh_auto_clean
-
-override_dh_auto_test:
-ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	shellcheck -e SC1090,SC1091,SC3043 $(shell find debian debian/tests -maxdepth 1 -type f | xargs grep -l '^#! */bin/\(ba\)\?sh')
-endif
